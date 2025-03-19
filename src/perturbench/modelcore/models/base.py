@@ -106,7 +106,7 @@ class InternalModel(nn.Module):
         #     lr_scheduler_patience=lr_scheduler_patience,
         #     lr_scheduler_factor=lr_scheduler_factor,
         # )
-
+        super().__init__() 
         self.lr = 1e-3 if lr is None else lr
         self.wd = 1e-5 if wd is None else wd
         self.lr_scheduler_freq = 1 if lr_scheduler_freq is None else lr_scheduler_freq
