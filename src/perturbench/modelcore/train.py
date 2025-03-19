@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from pudb import set_trace
 import hydra
 import lightning as L
 from omegaconf import DictConfig
@@ -36,9 +37,11 @@ def train(runtime_context: dict):
     loggers: List[Logger] = multi_instantiate(cfg.get("logger"))
 
     log.info("Instantiating trainer <%s>", cfg.trainer._target_)
+
     trainer: L.Trainer = hydra.utils.instantiate(
         cfg.trainer, callbacks=callbacks, logger=loggers
     )
+    set_trace() 
 
     if cfg.get("train"):
         log.info("Starting training!")
