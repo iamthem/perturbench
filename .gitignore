@@ -186,3 +186,5 @@ tensorboard/
 # Jupyter Notebook
 !*.ipynb
 !*.py
+
+tags
