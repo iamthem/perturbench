@@ -581,3 +581,71 @@ class PerturbationModel(L.LightningModule, ABC):
         print('got total correct val: %d' % self.totalValCorrects)
         self.totalValCorrects = 0
         return {'avg_val_loss': avg_loss}
+
+    def training_step(self, batch: Batch, batch_idx: int):
+        (
+            observed_perturbed_expression,
+            control_expression,
+            perturbation,
+            covariates,
+            embeddings,
+        ) = self.unpack_batch(batch)
+
+        if embeddings is not None:
+            control_input = embeddings
+        else:
+            control_input = control_expression
+
+        predicted_perturbed_expression = self.forward(
+            control_input, perturbation, covariates
+        )
+        loss = F.mse_loss(predicted_perturbed_expression, observed_perturbed_expression)
+        self.log("train_loss", loss, prog_bar=True, logger=True, batch_size=len(batch))
+        return loss
+
+    def validation_step(self, batch: Batch, batch_idx: int):
+        (
+            observed_perturbed_expression,
+            control_expression,
+            perturbation,
+            covariates,
+            embeddings,
+        ) = self.unpack_batch(batch)
+
+        if embeddings is not None:
+            control_input = embeddings
+        else:
+            control_input = control_expression
+
+        predicted_perturbed_expression = self.forward(
+            control_input, perturbation, covariates
+        )
+        val_loss = F.mse_loss(
+            predicted_perturbed_expression, observed_perturbed_expression
+        )
+        self.log(
+            "val_loss",
+            val_loss,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+            batch_size=len(batch),
+        )
+        self.validation_step_outputs.append(val_loss.item)
+        return val_loss
+
+    def predict(self, batch: Batch):
+        if batch.embeddings is not None:
+            control_input = batch.embeddings.squeeze()
+        else:
+            control_input = batch.gene_expression.squeeze()
+
+        perturbation = batch.perturbations.squeeze().to(self.device)
+        covariates = {k: v.to(self.device) for k, v in batch.covariates.items()}
+
+        predicted_perturbed_expression = self.forward(
+            control_input,
+            perturbation,
+            covariates,
+        )
+        return predicted_perturbed_expression
