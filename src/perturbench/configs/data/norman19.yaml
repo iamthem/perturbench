@@ -4,7 +4,7 @@ defaults:
   - evaluation: default
 
 _target_: perturbench.data.modules.AnnDataLitModule
-datapath: /ubunt/home/perturbench_data/norman19_processed.h5ad
+datapath: /home/ubuntu/perturbench_data/norman19_processed.h5ad
 perturbation_key: condition
 perturbation_combination_delimiter: +
 perturbation_control_value: control
