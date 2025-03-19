@@ -40,8 +40,169 @@ from omegaconf import DictConfig
 import os
 import gc
 from perturbench.data.types import Batch
+from torch import nn
 from perturbench.analysis.benchmarks.evaluation import Evaluation, merge_evals
+from perforatedai import pb_globals as PBG
+from ..nn.mlp import MLP, MaskNet
 
+
+class InternalModel(nn.Module):
+    def __init__(
+        self,
+        n_genes: int,
+        n_perts: int,
+        n_layers: int = 2,
+        encoder_width: int = 128,
+        latent_dim: int = 32,
+        lr: float | None = None,
+        wd: float | None = None,
+        lr_scheduler_freq: int | None = None,
+        lr_scheduler_interval: str | None = None,
+        lr_scheduler_patience: int | None = None,
+        lr_scheduler_factor: float | None = None,
+        dropout: float | None = None,
+        softplus_output: bool = True,
+        sparse_additive_mechanism: bool = False,
+        inject_covariates_encoder: bool = False,
+        inject_covariates_decoder: bool = False,
+        n_total_covariates: int | None = None,
+        datamodule: L.LightningDataModule | None = None,
+    ):
+        """
+        The constructor for the LatentAdditive class.
+
+        Args:
+            n_genes: Number of genes to use for prediction
+            n_perts: Number of perturbations in the dataset
+                (not including controls)
+            n_layers: Number of layers in the encoder/decoder
+            encoder_width: Width of the hidden layers in the encoder/decoder
+            latent_dim: Dimension of the latent space
+            lr: Learning rate
+            wd: Weight decay
+            lr_scheduler_freq: How often the learning rate scheduler checks
+                val_loss
+            lr_scheduler_interval: Whether the learning rate scheduler checks
+                every epoch or step
+            lr_scheduler_patience: Learning rate scheduler patience
+            lr_scheduler_factor: Factor by which to reduce learning rate when
+                learning rate scheduler triggers
+            dropout: Dropout rate or None for no dropout.
+            softplus_output: Whether to apply a softplus activation to the
+                output of the decoder to enforce non-negativity
+            inject_covariates_encoder: Whether to condition the encoder on
+                covariates
+            inject_covariates_decoder: Whether to condition the decoder on
+                covariates
+            datamodule: The datamodule used to train the model
+        """
+        # super(LatentAdditive, self).__init__(
+        #     datamodule=datamodule,
+        #     lr=lr,
+        #     wd=wd,
+        #     lr_scheduler_freq=lr_scheduler_freq,
+        #     lr_scheduler_interval=lr_scheduler_interval,
+        #     lr_scheduler_patience=lr_scheduler_patience,
+        #     lr_scheduler_factor=lr_scheduler_factor,
+        # )
+
+        self.lr = 1e-3 if lr is None else lr
+        self.wd = 1e-5 if wd is None else wd
+        self.lr_scheduler_freq = 1 if lr_scheduler_freq is None else lr_scheduler_freq
+
+        self.lr_scheduler_interval = (
+            "epoch" if lr_scheduler_interval is None else lr_scheduler_interval
+        )
+        self.lr_scheduler_patience = (
+            15 if lr_scheduler_patience is None else lr_scheduler_patience
+        )
+        self.lr_scheduler_factor = (
+            0.2 if lr_scheduler_factor is None else lr_scheduler_factor
+        )
+
+        ## What does this do?
+        #self.save_hyperparameters(ignore=["datamodule"])
+
+        if n_genes is not None:
+            self.n_genes = n_genes
+        if n_perts is not None:
+            self.n_perts = n_perts
+
+        if inject_covariates_encoder or inject_covariates_decoder:
+            if datamodule is None or datamodule.train_context is None:
+                raise ValueError(
+                    "If inject_covariates is True, datamodule must be provided"
+                )
+            n_total_covariates = np.sum(
+                [
+                    len(unique_covs)
+                    for unique_covs in datamodule.train_context[
+                        "covariate_uniques"
+                    ].values()
+                ]
+            )
+
+        encoder_input_dim = (
+            self.n_input_features + n_total_covariates
+            if inject_covariates_encoder
+            else self.n_input_features
+        )
+        decoder_input_dim = (
+            latent_dim + n_total_covariates if inject_covariates_decoder else latent_dim
+        )
+
+        self.gene_encoder = MLP(
+            encoder_input_dim, encoder_width, latent_dim, n_layers, dropout
+        )
+        self.decoder = MLP(
+            decoder_input_dim, encoder_width, self.n_genes, n_layers, dropout
+        )
+        self.pert_encoder = MLP(
+            self.n_perts, encoder_width, latent_dim, n_layers, dropout
+        )
+
+        if sparse_additive_mechanism:
+            self.mask_encoder = MaskNet(
+                self.n_perts, encoder_width, latent_dim, n_layers
+            )
+
+        self.dropout = dropout
+        self.softplus_output = softplus_output
+        self.sparse_additive_mechanism = sparse_additive_mechanism
+        self.inject_covariates_encoder = inject_covariates_encoder
+        self.inject_covariates_decoder = inject_covariates_decoder
+        
+
+    def forward(
+        self,
+        control_input: torch.Tensor,
+        perturbation: torch.Tensor,
+        covariates: dict[str, torch.Tensor],
+    ):
+        if self.inject_covariates_encoder or self.inject_covariates_decoder:
+            merged_covariates = torch.cat(
+                [cov.squeeze() for cov in covariates.values()], dim=1
+            )
+
+        if self.inject_covariates_encoder:
+            control_input = torch.cat([control_input, merged_covariates], dim=1)
+
+        latent_control = self.gene_encoder(control_input)
+        latent_perturbation = self.pert_encoder(perturbation)
+
+        if self.sparse_additive_mechanism:
+            mask = self.mask_encoder(perturbation)
+            latent_perturbation = mask * latent_perturbation
+
+        latent_perturbed = latent_control + latent_perturbation
+
+        if self.inject_covariates_decoder:
+            latent_perturbed = torch.cat([latent_perturbed, merged_covariates], dim=1)
+        predicted_perturbed_expression = self.decoder(latent_perturbed)
+
+        if self.softplus_output:
+            predicted_perturbed_expression = F.softplus(predicted_perturbed_expression)
+        return predicted_perturbed_expression
 
 class PerturbationModel(L.LightningModule, ABC):
     """A base model class for perturbation prediction models.
@@ -80,22 +241,59 @@ class PerturbationModel(L.LightningModule, ABC):
         lr_scheduler_patience: float | None = None,
         lr_scheduler_factor: float | None = None,
         lr_monitor_key: str | None = None,
+        n_genes: int = 0,
+        n_perts: int = 0,
+        n_layers: int = 2,
+        encoder_width: int = 128,
+        latent_dim: int = 32,
+        dropout: float | None = None,
+        softplus_output: bool = True,
+        sparse_additive_mechanism: bool = False,
+        inject_covariates_encoder: bool = False,
+        inject_covariates_decoder: bool = False,
+        n_total_covariates: int | None = None,
     ):
 
         super(PerturbationModel, self).__init__()
 
-        self.lr = 1e-3 if lr is None else lr
-        self.wd = 1e-5 if wd is None else wd
-        self.lr_scheduler_freq = 1 if lr_scheduler_freq is None else lr_scheduler_freq
-        self.lr_scheduler_interval = (
-            "epoch" if lr_scheduler_interval is None else lr_scheduler_interval
+        self.model = InternalModel(n_genes,
+        n_perts,
+        n_layers,
+        encoder_width,
+        latent_dim,
+        lr,
+        wd,
+        lr_scheduler_freq,
+        lr_scheduler_interval,
+        lr_scheduler_patience,
+        lr_scheduler_factor,
+        dropout,
+        softplus_output,
+        sparse_additive_mechanism,
+        inject_covariates_encoder,
+        inject_covariates_decoder,
+        n_total_covariates,
+        datamodule
         )
-        self.lr_scheduler_patience = (
-            15 if lr_scheduler_patience is None else lr_scheduler_patience
-        )
-        self.lr_scheduler_factor = (
-            0.2 if lr_scheduler_factor is None else lr_scheduler_factor
-        )
+
+        ## PAI Additions 
+        self.epochs = 0
+        self.validation_step_outputs = []
+
+        # Defined inside InteralModel
+        # self.lr = 1e-3 if lr is None else lr
+        # self.wd = 1e-5 if wd is None else wd
+        # self.lr_scheduler_freq = 1 if lr_scheduler_freq is None else lr_scheduler_freq
+        # self.lr_scheduler_interval = (
+        #     "epoch" if lr_scheduler_interval is None else lr_scheduler_interval
+        # )
+        # self.lr_scheduler_patience = (
+        #     15 if lr_scheduler_patience is None else lr_scheduler_patience
+        # )
+        # self.lr_scheduler_factor = (
+        #     0.2 if lr_scheduler_factor is None else lr_scheduler_factor
+        # )
+        
         self.lr_monitor_key = "val_loss" if lr_monitor_key is None else lr_monitor_key
 
         if datamodule is not None:
@@ -116,21 +314,34 @@ class PerturbationModel(L.LightningModule, ABC):
                 self.n_input_features = self.n_genes
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.lr, weight_decay=self.wd
-        )
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=self.lr_scheduler_factor,
-            patience=self.lr_scheduler_patience,
-        )
-        lr_scheduler = {
-            "scheduler": scheduler,
-            "monitor": self.lr_monitor_key,
-            "frequency": self.lr_scheduler_freq,
-            "interval": self.lr_scheduler_interval,
-        }
-        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler}
+
+        ## Block from section 3
+        PBG.pbTracker.setOptimizer(torch.optim.Adam)
+        PBG.pbTracker.setScheduler(torch.optim.lr_scheduler.ReduceLROnPlateau)
+        optimArgs = {'params':self.model.parameters(),'lr':self.model.lr}
+        schedArgs = {'patience': self.model.lr_scheduler_patience, 
+                                          'factor' : self.model.lr_scheduler_factor} #Make sure this is lower than epochs to switch
+        optimizer, PAIscheduler = PBG.pbTracker.setupOptimizer(self.model, optimArgs, schedArgs)
+
+        # optimizer = torch.optim.Adam(
+        #     self.parameters(), lr=self.lr, weight_decay=self.wd
+        # )
+
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer,
+        #     factor=self.lr_scheduler_factor,
+        #     patience=self.lr_scheduler_patience,
+        # )
+        
+        # lr_scheduler = {
+        #     "scheduler": scheduler,
+        #     "monitor": self.lr_monitor_key,
+        #     "frequency": self.lr_scheduler_freq,
+        #     "interval": self.lr_scheduler_interval,
+        # }
+
+        ## This might break stuff
+        return {"optimizer": optimizer} 
 
     def unpack_batch(self, batch: Batch):
         observed_perturbed_expression = batch.gene_expression.squeeze()
@@ -325,3 +536,28 @@ class PerturbationModel(L.LightningModule, ABC):
         ```
         """
         pass
+
+    ## MNIST example 
+    def on_validation_epoch_end(self):
+        avg_loss = torch.tensor(self.validation_step_outputs).mean()
+
+        #tensorboard_logs = {'val_loss': avg_loss}
+
+        goodEpochs = self.epochs
+        #The first epoch is a validation epoch that happens before any training, so don't add the score or the layers won't be initialized.
+        if(self.epochs != 0):
+            self.model, improved, restructured, trainingComplete = PBG.pbTracker.addValidationScore(avg_loss, 
+                                            self.model, # .module if its a dataParallel
+                                            'mnistPTL')
+            self.model.to('cuda')
+            if(trainingComplete):
+                #send the early stop signal by not increaseing the good epochs
+                goodEpochs = 0
+            elif(restructured): 
+                # This call will reinitialize the optimizers to point to the new model
+                self.trainer.strategy.setup(self.trainer)
+        self.log("Good Epochs", goodEpochs)
+        self.epochs += 1
+        print('got total correct val: %d' % self.totalValCorrects)
+        self.totalValCorrects = 0
+        return {'avg_val_loss': avg_loss}

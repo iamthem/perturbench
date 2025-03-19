@@ -219,6 +219,7 @@ class LatentAdditive(PerturbationModel):
             logger=True,
             batch_size=len(batch),
         )
+        self.validation_step_outputs.append(val_loss.item)
         return val_loss
 
     def predict(self, batch: Batch):

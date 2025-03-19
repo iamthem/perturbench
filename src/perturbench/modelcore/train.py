@@ -9,6 +9,24 @@ from perturbench.modelcore.utils import multi_instantiate
 from perturbench.modelcore.models import PerturbationModel
 from hydra.core.hydra_config import HydraConfig
 
+from perforatedai import pb_globals as PBG
+from perforatedai import pb_models as PBM
+from perforatedai import pb_utils as PBU
+from pytorch_lightning.callbacks import EarlyStopping
+
+## 1.2 
+# When to switch between Dendrite learning and neuron learning. 
+PBG.switchMode = PBG.doingHistory 
+# How many normal epochs to wait for before switching modes, make sure this is higher than your scheduler's patience.
+PBG.nEpochsToSwitch = 10  
+# Same as above for Dendrite epochs
+PBG.pEpochsToSwitch = 10
+# The default shape of input tensors
+PBG.inputDimensions = [-1, 0, -1, -1]
+
+## 1.3
+PBG.testingDendriteCapacity = True
+
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +48,15 @@ def train(runtime_context: dict):
     log.info("Instantiating model <%s>", cfg.model._target_)
     model: PerturbationModel = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
 
+    ## Added PAI 
+    model.model = PBU.convertNetwork(model.model)
+    PBG.pbTracker.initialize(
+    doingPB = True, #This can be set to false if you want to do just normal training 
+    saveName="PB_Latent",
+    maximizingScore=False, # True for maximizing validation score, false for minimizing validation loss
+    makingGraphs=True)  # True if you want graphs to be saved
+
+
     log.info("Instantiating callbacks...")
     callbacks: List[L.Callback] = multi_instantiate(cfg.get("callbacks"))
 
@@ -41,7 +68,6 @@ def train(runtime_context: dict):
     trainer: L.Trainer = hydra.utils.instantiate(
         cfg.trainer, callbacks=callbacks, logger=loggers
     )
-    set_trace() 
 
     if cfg.get("train"):
         log.info("Starting training!")
