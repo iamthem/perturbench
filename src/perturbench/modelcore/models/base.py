@@ -51,6 +51,7 @@ class InternalModel(nn.Module):
         self,
         n_genes: int,
         n_perts: int,
+        n_input_features,
         n_layers: int = 2,
         encoder_width: int = 128,
         latent_dim: int = 32,
@@ -109,6 +110,7 @@ class InternalModel(nn.Module):
         self.lr = 1e-3 if lr is None else lr
         self.wd = 1e-5 if wd is None else wd
         self.lr_scheduler_freq = 1 if lr_scheduler_freq is None else lr_scheduler_freq
+        self.n_input_features = n_input_features
 
         self.lr_scheduler_interval = (
             "epoch" if lr_scheduler_interval is None else lr_scheduler_interval
@@ -256,8 +258,26 @@ class PerturbationModel(L.LightningModule, ABC):
 
         super(PerturbationModel, self).__init__()
 
+        if datamodule is not None:
+            self.training_record["transform"] = datamodule.train_dataset.transform
+            self.training_record["train_context"] = datamodule.train_context
+            self.evaluation_config = datamodule.evaluation
+
+            self.training_record["train_context"] = datamodule.train_context
+            self.evaluation_config = datamodule.evaluation
+
+            self.n_genes = datamodule.num_genes
+            self.n_perts = datamodule.num_perturbations
+
+            embedding_width = datamodule.embedding_width
+            if embedding_width is not None:
+                self.n_input_features = embedding_width
+            else:
+                self.n_input_features = self.n_genes
+
         self.model = InternalModel(n_genes,
         n_perts,
+        self.n_input_features,
         n_layers,
         encoder_width,
         latent_dim,
