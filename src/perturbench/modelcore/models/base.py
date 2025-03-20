@@ -38,7 +38,7 @@ import numpy as np
 import anndata as ad
 from omegaconf import DictConfig
 import os
-from pudb import set_trace
+from pudb.remote import set_trace
 import gc
 from perturbench.data.types import Batch
 from torch import nn
@@ -624,7 +624,7 @@ class PerturbationModel(L.LightningModule, ABC):
             logger=True,
             batch_size=len(batch),
         )
-        self.validation_step_outputs.append(val_loss.item)
+        self.validation_step_outputs.append(val_loss.item())
         return val_loss
 
     def predict(self, batch: Batch):
