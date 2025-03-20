@@ -571,8 +571,6 @@ class PerturbationModel(L.LightningModule, ABC):
                 self.trainer.strategy.setup(self.trainer)
         self.log("Good Epochs", goodEpochs)
         self.epochs += 1
-        print('got total correct val: %d' % self.totalValCorrects)
-        self.totalValCorrects = 0
         return {'avg_val_loss': avg_loss}
 
     def training_step(self, batch: Batch, batch_idx: int):
