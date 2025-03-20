@@ -277,8 +277,8 @@ class PerturbationModel(L.LightningModule, ABC):
             else:
                 self.n_input_features = self.n_genes
 
-        self.model = InternalModel(n_genes,
-        n_perts,
+        self.model = InternalModel(self.n_genes,
+        self.n_perts,
         self.n_input_features,
         n_layers,
         encoder_width,
@@ -317,23 +317,6 @@ class PerturbationModel(L.LightningModule, ABC):
         # )
         
         self.lr_monitor_key = "val_loss" if lr_monitor_key is None else lr_monitor_key
-
-        if datamodule is not None:
-            self.training_record["transform"] = datamodule.train_dataset.transform
-            self.training_record["train_context"] = datamodule.train_context
-            self.evaluation_config = datamodule.evaluation
-
-            self.training_record["train_context"] = datamodule.train_context
-            self.evaluation_config = datamodule.evaluation
-
-            self.n_genes = datamodule.num_genes
-            self.n_perts = datamodule.num_perturbations
-
-            embedding_width = datamodule.embedding_width
-            if embedding_width is not None:
-                self.n_input_features = embedding_width
-            else:
-                self.n_input_features = self.n_genes
 
     def configure_optimizers(self):
 
