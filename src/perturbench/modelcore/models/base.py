@@ -44,6 +44,7 @@ from perturbench.data.types import Batch
 from torch import nn
 from perturbench.analysis.benchmarks.evaluation import Evaluation, merge_evals
 from perforatedai import pb_globals as PBG
+import torch.nn.functional as F
 from ..nn.mlp import MLP, MaskNet
 
 
