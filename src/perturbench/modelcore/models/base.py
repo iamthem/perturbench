@@ -520,26 +520,34 @@ class PerturbationModel(L.LightningModule, ABC):
         # Cleanup
         gc.collect()
 
-    @abstractmethod
-    def predict(self, counterfactual_batch: Batch) -> torch.Tensor:
-        """Given a counterfactual_batch of data, predicted the counterfactual perturbed expression.
+    # @abstractmethod
+    # def predict(self, counterfactual_batch: Batch) -> torch.Tensor:
+    #     """Given a counterfactual_batch of data, predicted the counterfactual perturbed expression.
 
-        Example implementation:
-        ```
-        def predict(self, counterfactual_batch):
-            control_expression = counterfactual_batch.gene_expression.squeeze()
-            perturbation = counterfactual_batch.perturbations.squeeze()
-            covariates = counterfactual_batch.covariates.squeeze()
+    #     Example implementation:
+    #     ```
+    #     def predict(self, counterfactual_batch):
+    #         control_expression = counterfactual_batch.gene_expression.squeeze()
+    #         perturbation = counterfactual_batch.perturbations.squeeze()
+    #         covariates = counterfactual_batch.covariates.squeeze()
 
-            predicted_perturbed_expression = self.forward(
-                control_expression,
-                perturbation,
-                covariates,
-            )
-            return predicted_perturbed_expression
-        ```
-        """
-        pass
+    #         predicted_perturbed_expression = self.forward(
+    #             control_expression,
+    #             perturbation,
+    #             covariates,
+    #         )
+    #         return predicted_perturbed_expression
+    #     ```
+    #     """
+    #     pass
+
+    def forward(
+        self,
+        control_input: torch.Tensor,
+        perturbation: torch.Tensor,
+        covariates: dict[str, torch.Tensor],
+    ):
+        return self.model.forward(control_input, perturbation, covariates)
 
     ## MNIST example 
     def on_validation_epoch_end(self):
