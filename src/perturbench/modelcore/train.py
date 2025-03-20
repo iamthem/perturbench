@@ -14,6 +14,11 @@ from perforatedai import pb_models as PBM
 from perforatedai import pb_utils as PBU
 from pytorch_lightning.callbacks import EarlyStopping
 
+import os
+
+os.environ["PAITOKEN"] = "SbwBDRlLcrzciRn5LIBjTRIX0tko9h30vTaXo5U/V6fQcUv9UCEoXSGr4Y1lBFQXK82MDcsBbgCup0b/U/CK7XF85BDLYOCklwnWY2DhDkIX4MOEZ5l6CFvBqPSYmHYnVBfVgVTzRHSgJL1dfJbM3kfXqKIZp1BxIAsGDzRHsw8BP24x9yNCGj5uLPDneph5NUyoU/VJ+xuIy8To+KqYgUWdLBqqOPuEFQacV9iwjEum2zTHN0LautV7YnQq6lMJS9J454mT1+XpnlePJD8wwxyluwstLuUHiCQJYuBaaab+GJR8s5XXmO3ytFnMmEc8XI6WPGggdyv0EFzecEPVeg=="
+os.environ["PAIEMAIL"] = "hacker@perforatedai.com"
+
 ## 1.2 
 # When to switch between Dendrite learning and neuron learning. 
 PBG.switchMode = PBG.doingHistory 

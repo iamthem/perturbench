@@ -154,7 +154,6 @@ class InternalModel(nn.Module):
             latent_dim + n_total_covariates if inject_covariates_decoder else latent_dim
         )
 
-        set_trace()
         self.gene_encoder = MLP(
             encoder_input_dim, encoder_width, latent_dim, n_layers, dropout
         )
