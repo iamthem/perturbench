@@ -1,4 +1,6 @@
 import torch
+
+from perforatedai import pb_globals as PBG
 import torch.nn as nn
 from torch.distributions import RelaxedBernoulli
 
@@ -35,32 +37,42 @@ class MLP(nn.Module):
             raise ValueError("norm must be one of ['layer', 'batch', None]")
 
         layers = nn.Sequential()
-        layers.append(nn.Linear(input_dim, hidden_dim))
+        #layers.append(nn.Linear(input_dim, hidden_dim))
 
-        if norm == "layer":
-            layers.append(
-                nn.LayerNorm(hidden_dim, elementwise_affine=elementwise_affine)
+        #if norm == "layer":
+        layers.append(
+               PBG.PBSequential( 
+                    [nn.Linear(input_dim, hidden_dim),
+                     nn.LayerNorm(hidden_dim, elementwise_affine=elementwise_affine)
+                    ]
+               )
             )
-        elif norm == "batch":
-            layers.append(nn.BatchNorm1d(hidden_dim, momentum=0.01, eps=0.001))
+        # elif norm == "batch":
+        #     layers.append(nn.BatchNorm1d(hidden_dim, momentum=0.01, eps=0.001))
 
         layers.append(nn.ReLU())
         if dropout is not None:
             layers.append(nn.Dropout(dropout))
 
         for _ in range(0, n_layers - 1):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
 
-            if norm == "layer":
-                layers.append(nn.LayerNorm(hidden_dim, elementwise_affine=False))
-            elif norm == "batch":
-                layers.append(nn.BatchNorm1d(hidden_dim, momentum=0.01, eps=0.001))
+            layers.append(
+            #if norm == "layer":
+            PBG.PBSequential( 
+                    [nn.Linear(hidden_dim, hidden_dim),
+                     nn.LayerNorm(hidden_dim, elementwise_affine=elementwise_affine)
+                    ]
+               )
+            )
+            # elif norm == "batch":
+            #     layers.append(nn.BatchNorm1d(hidden_dim, momentum=0.01, eps=0.001))
 
             layers.append(nn.ReLU())
             if dropout is not None:
                 layers.append(nn.Dropout(dropout))
 
-        layers.append(nn.Linear(hidden_dim, output_dim))
+            
+        layers.append(PBG.PBSequential([nn.Linear(hidden_dim, output_dim)]))
 
         self.layers = layers
 
