@@ -76,7 +76,7 @@ def train(runtime_context: dict):
 
     if cfg.get("train"):
         log.info("Starting training!")
-        trainer.fit(model=model.model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
     train_metrics = trainer.callback_metrics
 
@@ -93,7 +93,7 @@ def train(runtime_context: dict):
                 ckpt_path = "best"
         else:
             ckpt_path = cfg.get("ckpt_path")
-        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        trainer.test(model=model.model, datamodule=datamodule, ckpt_path=ckpt_path)
         summary_metrics_dict = model.summary_metrics.to_dict()[
             model.summary_metrics.columns[0]
         ]
