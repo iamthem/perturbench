@@ -74,6 +74,7 @@ def train(runtime_context: dict):
         cfg.trainer, callbacks=callbacks, logger=loggers
     )
 
+    set_trace()
     if cfg.get("train"):
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
