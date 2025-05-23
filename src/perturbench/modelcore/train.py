@@ -16,12 +16,10 @@ from pytorch_lightning.callbacks import EarlyStopping
 
 import os
 
-os.environ["PAITOKEN"] = "SbwBDRlLcrzciRn5LIBjTRIX0tko9h30vTaXo5U/V6fQcUv9UCEoXSGr4Y1lBFQXK82MDcsBbgCup0b/U/CK7XF85BDLYOCklwnWY2DhDkIX4MOEZ5l6CFvBqPSYmHYnVBfVgVTzRHSgJL1dfJbM3kfXqKIZp1BxIAsGDzRHsw8BP24x9yNCGj5uLPDneph5NUyoU/VJ+xuIy8To+KqYgUWdLBqqOPuEFQacV9iwjEum2zTHN0LautV7YnQq6lMJS9J454mT1+XpnlePJD8wwxyluwstLuUHiCQJYuBaaab+GJR8s5XXmO3ytFnMmEc8XI6WPGggdyv0EFzecEPVeg=="
-os.environ["PAIEMAIL"] = "hacker@perforatedai.com"
-
+os.environ["PAIPASSWORD"] = "123"
 ## 1.2 
 # When to switch between Dendrite learning and neuron learning. 
-PBG.switchMode = PBG.doingHistory 
+PBG.switchMode = PBG.doingHistory
 # How many normal epochs to wait for before switching modes, make sure this is higher than your scheduler's patience.
 PBG.nEpochsToSwitch = 10  
 # Same as above for Dendrite epochs
@@ -52,11 +50,10 @@ def train(runtime_context: dict):
 
     log.info("Instantiating model <%s>", cfg.model._target_)
     model: PerturbationModel = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
+    modelPB: PerturbationModel = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
 
     ## Added PAI 
-    model.model = PBU.convertNetwork(model.model)
-    PBG.pbTracker.initialize(
-    doingPB = True, #This can be set to false if you want to do just normal training 
+    modelPB.model = PBU.initializePB(model.model, doingPB = True, #This can be set to false if you want to do just normal training 
     saveName="PB_Latent",
     maximizingScore=False, # True for maximizing validation score, false for minimizing validation loss
     makingGraphs=True)  # True if you want graphs to be saved
@@ -94,7 +91,8 @@ def train(runtime_context: dict):
         else:
             ckpt_path = cfg.get("ckpt_path")
 
-        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        #trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        trainer.test(model=modelPB, datamodule=datamodule, ckpt_path=ckpt_path)
         summary_metrics_dict = model.summary_metrics.to_dict()[
             model.summary_metrics.columns[0]
         ]

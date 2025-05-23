@@ -13,8 +13,9 @@ defaults:
 seed: 245
 
 trainer:
-  min_epochs: 1
-  max_epochs: 5
+  ## Running original epoch ##
+  min_epochs: 5
+  max_epochs: 500
 
 data:
   splitter:

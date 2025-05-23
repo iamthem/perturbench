@@ -559,9 +559,8 @@ class PerturbationModel(L.LightningModule, ABC):
         goodEpochs = self.epochs
         #The first epoch is a validation epoch that happens before any training, so don't add the score or the layers won't be initialized.
         if(self.epochs != 0):
-            self.model, improved, restructured, trainingComplete = PBG.pbTracker.addValidationScore(avg_loss, 
-                                            self.model, # .module if its a dataParallel
-                                            'mnistPTL')
+            self.model, restructured, trainingComplete = PBG.pbTracker.addValidationScore(avg_loss, 
+                                                                                          self.model) # .module if its a dataParallel)
             self.model.to('cuda')
             if(trainingComplete):
                 #send the early stop signal by not increaseing the good epochs

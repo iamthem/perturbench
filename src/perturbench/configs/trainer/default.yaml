@@ -9,7 +9,8 @@ accelerator: gpu
 devices: 1
 
 # mixed precision for extra speed-up
-precision: 16
+# Originally set to 16
+precision: 32 
 
 # perform a validation loop every N training epochs
 check_val_every_n_epoch: 1
