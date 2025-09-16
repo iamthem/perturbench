@@ -7,6 +7,7 @@ from omegaconf import DictConfig
 from lightning.pytorch.loggers import Logger
 from perturbench.modelcore.utils import multi_instantiate
 from perturbench.modelcore.models import PerturbationModel
+from perturbench.modelcore.models import LatentAdditive 
 from hydra.core.hydra_config import HydraConfig
 
 from perforatedai import pb_globals as PBG
@@ -49,15 +50,16 @@ def train(runtime_context: dict):
     )
 
     log.info("Instantiating model <%s>", cfg.model._target_)
-    model: PerturbationModel = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
+    set_trace()
+    model: LatentAdditive = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
     modelPB: PerturbationModel = hydra.utils.instantiate(cfg.model, datamodule=datamodule)
 
     ## Added PAI 
-    modelPB.model = PBU.initializePB(model.model, doingPB = True, #This can be set to false if you want to do just normal training 
-    saveName="PB_Latent",
-    maximizingScore=False, # True for maximizing validation score, false for minimizing validation loss
-    makingGraphs=True)  # True if you want graphs to be saved
-
+    # modelPB.model = PBU.initializePB(model.model, doingPB = True, #This can be set to false if you want to do just normal training 
+    # saveName="PB_Latent",
+    # maximizingScore=False, # True for maximizing validation score, false for minimizing validation loss
+    # makingGraphs=True)  # True if you want graphs to be saved
+    #
 
     log.info("Instantiating callbacks...")
     callbacks: List[L.Callback] = multi_instantiate(cfg.get("callbacks"))
@@ -91,8 +93,8 @@ def train(runtime_context: dict):
         else:
             ckpt_path = cfg.get("ckpt_path")
 
-        #trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-        trainer.test(model=modelPB, datamodule=datamodule, ckpt_path=ckpt_path)
+        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        #trainer.test(model=modelPB, datamodule=datamodule, ckpt_path=ckpt_path)
         summary_metrics_dict = model.summary_metrics.to_dict()[
             model.summary_metrics.columns[0]
         ]
